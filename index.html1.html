@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUTOUT — Background Remover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --charcoal: #15140F;
+    --charcoal-2: #1D1C16;
+    --charcoal-3: #26241B;
+    --paper: #EDEEE6;
+    --paper-dim: #D8D9CD;
+    --key: #1FD17E;
+    --key-deep: #0FAE65;
+    --key-soft: rgba(31,209,126,0.14);
+    --ink: #F3F2EA;
+    --ink-dim: #ABA99B;
+    --graphite: #232218;
+    --line: rgba(243,242,234,0.12);
+    --line-soft: rgba(35,34,24,0.10);
+    --warn: #FF6A4D;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', 'Helvetica Neue', Arial, sans-serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--charcoal);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  ::selection{ background: var(--key); color: var(--graphite); }
+
+  a{ color: inherit; }
+
+  .page{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 28px 80px;
+  }
+
+  /* ---------- header ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 26px 0 18px;
+  }
+  .wordmark{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family: var(--font-display);
+    font-weight:700;
+    font-size: 19px;
+    letter-spacing: 0.01em;
+  }
+  .wordmark .dot{
+    width:9px; height:9px; border-radius:2px;
+    background: var(--key);
+    box-shadow: 0 0 14px var(--key-soft);
+  }
+  .wordmark .slash{ color: var(--key); }
+  .topbar-note{
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    letter-spacing: 0.04em;
+    display:flex; align-items:center; gap:8px;
+  }
+  .pulse-dot{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--key);
+    box-shadow: 0 0 0 0 var(--key-soft);
+    animation: pulse 2.2s ease-out infinite;
+  }
+  @keyframes pulse{
+    0%{ box-shadow: 0 0 0 0 rgba(31,209,126,0.45); }
+    70%{ box-shadow: 0 0 0 8px rgba(31,209,126,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(31,209,126,0); }
+  }
+
+  /* ---------- hero ---------- */
+  .hero{ padding: 38px 0 26px; }
+  .eyebrow{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--key);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display:flex; align-items:center; gap:10px;
+    margin-bottom: 18px;
+    opacity:0;
+    animation: rise 0.7s ease forwards;
+  }
+  .eyebrow::before{
+    content:"";
+    width: 22px; height: 1px;
+    background: var(--key);
+  }
+  h1{
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(34px, 6vw, 64px);
+    line-height: 1.03;
+    letter-spacing: -0.01em;
+    margin: 0 0 18px;
+  }
+  h1 .line{
+    display:block;
+    overflow:hidden;
+  }
+  h1 .line span{
+    display:block;
+    transform: translateY(110%);
+    animation: rise-text 0.8s cubic-bezier(.16,.84,.32,1) forwards;
+  }
+  h1 .line:nth-child(2) span{ animation-delay: 0.08s; }
+  h1 .accent{ color: var(--key); }
+  @keyframes rise-text{ to{ transform: translateY(0); } }
+  @keyframes rise{ to{ opacity:1; } }
+
+  .hero p.sub{
+    font-size: 16.5px;
+    line-height:1.6;
+    color: var(--ink-dim);
+    max-width: 520px;
+    margin: 0 0 36px;
+    opacity:0;
+    animation: rise 0.7s ease 0.3s forwards;
+  }
+
+  /* ---------- dropzone ---------- */
+  .dropzone{
+    position: relative;
+    border-radius: 20px;
+    background: var(--charcoal-2);
+    min-height: 280px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition: background 0.25s ease, transform 0.2s ease;
+    opacity:0;
+    animation: rise 0.7s ease 0.45s forwards;
+  }
+  .dropzone:hover{ background: var(--charcoal-3); }
+  .dropzone.drag{ background: var(--key-soft); transform: scale(1.005); }
+  .ants{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    pointer-events:none;
+  }
+  .ants rect{
+    fill:none;
+    stroke: var(--key);
+    stroke-width: 1.6;
+    stroke-dasharray: 10 7;
+    opacity: 0.85;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .ants rect{ animation: march 1s linear infinite; }
+  }
+  @keyframes march{ to{ stroke-dashoffset: -34; } }
+
+  .dz-content{
+    position:relative;
+    text-align:center;
+    padding: 30px 24px;
+  }
+  .dz-icon{ margin-bottom: 14px; }
+  .dz-content p.lead{
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 0 4px;
+  }
+  .dz-content p.hint{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+    margin: 0 0 18px;
+  }
+
+  .btn{
+    position: relative;
+    overflow: hidden;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 13.5px;
+    border: none;
+    border-radius: 9px;
+    padding: 11px 18px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+  .btn:active{ transform: scale(0.96); }
+  .btn-key{
+    background: var(--key);
+    color: #0B2417;
+  }
+  .btn-key:hover{ background: var(--key-deep); box-shadow: 0 6px 22px var(--key-soft); }
+  .btn-ghost{
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  .btn-ghost:hover{ border-color: var(--key); color: var(--key); }
+  .btn-sm{ padding: 8px 14px; font-size: 12.5px; }
+  .ripple{
+    position:absolute;
+    border-radius:50%;
+    background: rgba(255,255,255,0.45);
+    transform: scale(0);
+    animation: ripple-anim 0.55s ease-out;
+    pointer-events:none;
+  }
+  @keyframes ripple-anim{ to{ transform: scale(2.6); opacity:0; } }
+
+  /* ---------- steps ---------- */
+  .steps{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+    margin: 56px 0;
+    padding-top: 32px;
+    border-top: 1px solid var(--line);
+  }
+  .step{ }
+  .step .num{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--key);
+    letter-spacing: 0.1em;
+    display:block;
+    margin-bottom: 8px;
+  }
+  .step .title{
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 17px;
+    margin-bottom: 6px;
+  }
+  .step .desc{
+    font-size: 13.5px;
+    color: var(--ink-dim);
+    line-height:1.55;
+  }
+
+  /* ---------- workspace ---------- */
+  .workspace{
+    margin-top: 10px;
+    display:none;
+  }
+  .workspace.active{ display:block; animation: rise 0.5s ease forwards; }
+
+  .workspace-grid{
+    display:grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 26px;
+    align-items:start;
+  }
+  @media (max-width: 860px){
+    .workspace-grid{ grid-template-columns: 1fr; }
+  }
+
+  .stage{
+    position:relative;
+    border-radius: 18px;
+    overflow:hidden;
+    background:
+      repeating-conic-gradient(var(--paper-dim) 0% 25%, var(--paper) 0% 50%) 0 0 / 22px 22px;
+    border: 1px solid var(--line);
+    aspect-ratio: 4/3;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .stage canvas{
+    position:absolute;
+    inset:0;
+    width:100%; height:100%;
+    object-fit: contain;
+  }
+  #originalCanvas{ z-index:1; }
+  #resultCanvas{ z-index:2; clip-path: inset(0 0 0 50%); }
+
+  .compare-handle{
+    position:absolute;
+    top:0; bottom:0;
+    left:50%;
+    width:0;
+    z-index:3;
+    pointer-events:none;
+  }
+  .compare-handle::before{
+    content:"";
+    position:absolute; top:0; bottom:0; left:-1px;
+    width:2px;
+    background: var(--ink);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+  }
+  .compare-handle::after{
+    content:"⇆";
+    position:absolute; top:50%; left:50%;
+    transform: translate(-50%,-50%);
+    width:30px; height:30px;
+    border-radius:50%;
+    background: var(--ink);
+    color: var(--graphite);
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:700;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  }
+  .compare-range{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    opacity:0;
+    cursor: ew-resize;
+    z-index:4;
+    margin:0;
+  }
+
+  .tag{
+    position:absolute;
+    top:12px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing:0.06em;
+    background: rgba(21,20,15,0.72);
+    color: var(--ink);
+    padding: 4px 9px;
+    border-radius: 999px;
+    z-index:5;
+  }
+  .tag.before{ left:12px; }
+  .tag.after{ right:12px; }
+
+  .scan{
+    position:absolute; left:0; right:0; top:0;
+    height:2px;
+    background: linear-gradient(90deg, transparent, var(--key), transparent);
+    box-shadow: 0 0 14px 2px var(--key-soft);
+    z-index:6;
+    opacity:0;
+  }
+  .scan.on{
+    opacity:1;
+    animation: sweep 0.95s ease-in-out infinite;
+  }
+  @keyframes sweep{
+    0%{ top:2%; }
+    50%{ top:96%; }
+    100%{ top:2%; }
+  }
+  .scan-label{
+    position:absolute;
+    bottom:14px; left:50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--key);
+    background: rgba(21,20,15,0.78);
+    padding: 5px 12px;
+    border-radius: 999px;
+    z-index:6;
+    opacity:0;
+    transition: opacity 0.2s ease;
+  }
+  .scan-label.on{ opacity:1; }
+
+  .confetti-sq{
+    position:absolute;
+    width:8px; height:8px;
+    background: var(--key);
+    border-radius:2px;
+    z-index:7;
+    opacity:0;
+    animation: pop 0.6s cubic-bezier(.2,.9,.3,1.3) forwards;
+  }
+  @keyframes pop{
+    0%{ opacity:0; transform: scale(0) translateY(0); }
+    35%{ opacity:1; }
+    100%{ opacity:0; transform: scale(1) translateY(-26px); }
+  }
+
+  /* ---------- control panel ---------- */
+  .panel{
+    background: var(--charcoal-2);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 22px;
+  }
+  .panel h3{
+    font-family: var(--font-display);
+    font-size: 15px;
+    margin: 0 0 16px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .swatch-row{
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:18px;
+  }
+  .swatch{
+    width:34px; height:34px;
+    border-radius:8px;
+    border: 1px solid var(--line);
+    flex-shrink:0;
+  }
+  .swatch-info{
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    line-height:1.5;
+  }
+  .swatch-info b{ color: var(--ink); font-weight:500; }
+
+  .field{ margin-bottom: 18px; }
+  .field label{
+    display:flex; justify-content:space-between;
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+  }
+  .field label .val{ color: var(--key); }
+  input[type="range"]{
+    -webkit-appearance:none;
+    width:100%;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--line);
+    outline:none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:16px; height:16px;
+    border-radius:50%;
+    background: var(--key);
+    cursor:pointer;
+    border: 3px solid var(--charcoal-2);
+    box-shadow: 0 0 0 1px var(--key);
+    transition: transform 0.15s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover{ transform: scale(1.15); }
+  input[type="range"]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%;
+    background: var(--key); border: 3px solid var(--charcoal-2);
+    cursor:pointer;
+  }
+
+  .check-row{
+    display:flex; align-items:center; gap:9px;
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-bottom: 20px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .check-row input{ accent-color: var(--key); width:15px; height:15px; }
+
+  .panel-actions{
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .panel-actions .btn{ width:100%; text-align:center; }
+
+  .hud{
+    margin-top:18px;
+    padding-top:16px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 14px;
+  }
+  .hud span b{ color: var(--ink); display:block; font-size:12.5px; margin-top:2px; }
+
+  .privacy-note{
+    margin-top: 46px;
+    display:flex; align-items:flex-start; gap:10px;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--charcoal-2);
+    font-size: 13px;
+    color: var(--ink-dim);
+    line-height:1.5;
+  }
+  .privacy-note b{ color: var(--ink); }
+
+  .hidden{ display:none !important; }
+
+  @media (max-width: 560px){
+    .steps{ grid-template-columns:1fr; }
+    .topbar-note{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="topbar">
+    <div class="wordmark"><span class="dot"></span>CUT<span class="slash">/</span>OUT</div>
+    <div class="topbar-note"><span class="pulse-dot"></span>runs entirely in this browser tab</div>
+  </div>
+
+  <section class="hero">
+    <div class="eyebrow">Background Removal · No Upload, No Server</div>
+    <h1>
+      <span class="line"><span>Snip the backdrop.</span></span>
+      <span class="line"><span>Keep the <span class="accent">subject.</span></span></span>
+    </h1>
+    <p class="sub">Drop a photo with a plain or solid background — a product shot, a portrait, an ID photo — and pull a clean transparent cutout in seconds. Everything happens on your device.</p>
+
+    <div class="dropzone" id="dropzone">
+      <svg class="ants" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <rect x="1.5%" y="2%" width="97%" height="96%" rx="16" ry="16"></rect>
+      </svg>
+      <div class="dz-content">
+        <svg class="dz-icon" width="38" height="38" viewBox="0 0 24 24" fill="none">
+          <circle cx="6" cy="6" r="3" stroke="#1FD17E" stroke-width="1.6"/>
+          <circle cx="6" cy="18" r="3" stroke="#1FD17E" stroke-width="1.6"/>
+          <path d="M8.5 7.7L20 18M20 6L13 12.3M8.5 16.3L11 14" stroke="#1FD17E" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <p class="lead">Drop an image here, or click to browse</p>
+        <p class="hint">PNG / JPG · processed locally, never sent anywhere</p>
+        <button class="btn btn-ghost btn-sm" id="demoBtn" type="button">Try a demo image instead</button>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" class="hidden">
+    </div>
+  </section>
+
+  <section class="steps">
+    <div class="step">
+      <span class="num">01 — DROP</span>
+      <div class="title">Load a photo</div>
+      <div class="desc">Best results on plain, evenly lit backgrounds — studio shots, ID photos, product flat-lays.</div>
+    </div>
+    <div class="step">
+      <span class="num">02 — TUNE</span>
+      <div class="title">Pick the background</div>
+      <div class="desc">We auto-sample the corners. Use the eyedropper and the tolerance slider to dial it in.</div>
+    </div>
+    <div class="step">
+      <span class="num">03 — EXPORT</span>
+      <div class="title">Download the cutout</div>
+      <div class="desc">Grab a transparent PNG, ready to drop into a listing, a deck, or a design file.</div>
+    </div>
+  </section>
+
+  <section class="workspace" id="workspace">
+    <div class="workspace-grid">
+
+      <div class="stage" id="stage">
+        <canvas id="originalCanvas"></canvas>
+        <canvas id="resultCanvas"></canvas>
+        <div class="compare-handle" id="compareHandle"></div>
+        <input type="range" class="compare-range" id="compareRange" min="0" max="100" value="50">
+        <span class="tag before">ORIGINAL</span>
+        <span class="tag after">CUTOUT</span>
+        <div class="scan" id="scan"></div>
+        <div class="scan-label" id="scanLabel">detecting edges…</div>
+      </div>
+
+      <div class="panel">
+        <h3>Adjust</h3>
+
+        <div class="swatch-row">
+          <div class="swatch" id="swatch"></div>
+          <div class="swatch-info">Background colour<br><b id="swatchRgb">—</b></div>
+        </div>
+
+        <button class="btn btn-ghost btn-sm" id="eyedropBtn" type="button" style="width:100%; margin-bottom:18px;">🎯 Pick background colour from image</button>
+
+        <div class="field">
+          <label>Tolerance <span class="val" id="toleranceVal">32</span></label>
+          <input type="range" id="tolerance" min="2" max="100" value="32">
+        </div>
+
+        <div class="field">
+          <label>Edge feather <span class="val" id="featherVal">22</span></label>
+          <input type="range" id="feather" min="0" max="100" value="22">
+        </div>
+
+        <label class="check-row">
+          <input type="checkbox" id="despeckle" checked>
+          Smooth edges (despeckle)
+        </label>
+
+        <div class="panel-actions">
+          <button class="btn btn-key" id="downloadBtn" type="button">⭳ Download transparent PNG</button>
+          <button class="btn btn-ghost" id="resetBtn" type="button">Start over</button>
+        </div>
+
+        <div class="hud">
+          <span>Dimensions<b id="hudDims">—</b></span>
+          <span>Original size<b id="hudSize">—</b></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="privacy-note">
+    <span>🔒</span>
+    <span><b>Nothing leaves your device.</b> This tool decodes the image and processes every pixel locally in your browser's canvas — there's no server, no API call, and no copy of your photo stored anywhere.</span>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const dropzone = $('dropzone'), fileInput = $('fileInput'), demoBtn = $('demoBtn');
+  const workspace = $('workspace'), stage = $('stage');
+  const originalCanvas = $('originalCanvas'), resultCanvas = $('resultCanvas');
+  const oCtx = originalCanvas.getContext('2d', { willReadFrequently: true });
+  const rCtx = resultCanvas.getContext('2d', { willReadFrequently: true });
+  const compareRange = $('compareRange'), compareHandle = $('compareHandle');
+  const swatch = $('swatch'), swatchRgb = $('swatchRgb');
+  const toleranceEl = $('tolerance'), featherEl = $('feather'), despeckleEl = $('despeckle');
+  const toleranceVal = $('toleranceVal'), featherVal = $('featherVal');
+  const eyedropBtn = $('eyedropBtn'), downloadBtn = $('downloadBtn'), resetBtn = $('resetBtn');
+  const hudDims = $('hudDims'), hudSize = $('hudSize');
+  const scanEl = $('scan'), scanLabel = $('scanLabel');
+
+  const MAX_DIM = 1400;
+
+  const state = {
+    bg: { r: 255, g: 255, b: 255 },
+    tolerance: 32,
+    feather: 22,
+    despeckle: true,
+    eyedropActive: false,
+    hasImage: false,
+    fileSizeLabel: '—'
+  };
+
+  /* ---------- ripple on every .btn ---------- */
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('.btn');
+    if(!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.4;
+    const r = document.createElement('span');
+    r.className = 'ripple';
+    r.style.width = r.style.height = size + 'px';
+    r.style.left = (e.clientX - rect.left - size/2) + 'px';
+    r.style.top = (e.clientY - rect.top - size/2) + 'px';
+    btn.appendChild(r);
+    setTimeout(()=> r.remove(), 600);
+  });
+
+  /* ---------- file intake ---------- */
+  dropzone.addEventListener('click', ()=> fileInput.click());
+  dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e=>{
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e=>{
+    if(e.target.files && e.target.files[0]) loadFile(e.target.files[0]);
+  });
+  demoBtn.addEventListener('click', e=>{ e.stopPropagation(); loadDemoImage(); });
+
+  function loadFile(file){
+    if(!file.type.startsWith('image/')) return;
+    state.fileSizeLabel = formatBytes(file.size);
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=> bootstrap(img);
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function loadDemoImage(){
+    // synthetic studio shot: solid backdrop + a "product" so the tool is testable with zero uploads
+    const w = 900, h = 700;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    const grad = ctx.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0, '#D8DCE6');
+    grad.addColorStop(1, '#C3C9D6');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,w,h);
+
+    // soft shadow
+    ctx.save();
+    ctx.translate(w/2, h*0.74);
+    ctx.scale(1, 0.22);
+    const sg = ctx.createRadialGradient(0,0,0,0,0,260);
+    sg.addColorStop(0,'rgba(20,20,20,0.30)');
+    sg.addColorStop(1,'rgba(20,20,20,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(0,0,260,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // "product": a mug-like shape
+    ctx.fillStyle = '#E8533D';
+    roundRect(ctx, w/2-110, h*0.30, 220, 260, 26); ctx.fill();
+    ctx.fillStyle = '#C8432F';
+    roundRect(ctx, w/2-110, h*0.30, 220, 40, 26); ctx.fill();
+    ctx.strokeStyle = '#E8533D'; ctx.lineWidth = 26; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(w/2+118, h*0.30+140, 58, -1.0, 1.0); ctx.stroke();
+
+    c.toBlob(blob=>{
+      state.fileSizeLabel = 'demo image';
+      const img = new Image();
+      img.onload = ()=> bootstrap(img);
+      img.src = URL.createObjectURL(blob);
+    }, 'image/png');
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function formatBytes(n){
+    if(n < 1024) return n + ' B';
+    if(n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+    return (n/(1024*1024)).toFixed(2) + ' MB';
+  }
+
+  /* ---------- bootstrap workspace ---------- */
+  function bootstrap(img){
+    let w = img.naturalWidth, h = img.naturalHeight;
+    const scale = Math.min(1, MAX_DIM / Math.max(w,h));
+    w = Math.round(w*scale); h = Math.round(h*scale);
+
+    originalCanvas.width = w; originalCanvas.height = h;
+    resultCanvas.width = w; resultCanvas.height = h;
+    oCtx.clearRect(0,0,w,h);
+    oCtx.drawImage(img, 0, 0, w, h);
+
+    workspace.classList.add('active');
+    workspace.scrollIntoView({ behavior:'smooth', block:'start' });
+
+    state.hasImage = true;
+    autoDetectBg();
+    hudDims.textContent = w + ' × ' + h + ' px';
+    hudSize.textContent = state.fileSizeLabel;
+
+    runProcess(true);
+  }
+
+  function autoDetectBg(){
+    const w = originalCanvas.width, h = originalCanvas.height;
+    const patch = Math.max(2, Math.round(Math.min(w,h) * 0.04));
+    const corners = [[0,0],[w-patch,0],[0,h-patch],[w-patch,h-patch]];
+    let r=0,g=0,b=0,n=0;
+    corners.forEach(([cx,cy])=>{
+      const d = oCtx.getImageData(cx,cy,patch,patch).data;
+      for(let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
+    });
+    setBgColor(Math.round(r/n), Math.round(g/n), Math.round(b/n));
+  }
+
+  function setBgColor(r,g,b){
+    state.bg = { r,g,b };
+    swatch.style.background = `rgb(${r},${g},${b})`;
+    swatchRgb.textContent = `rgb(${r}, ${g}, ${b})`;
+  }
+
+  /* ---------- eyedropper ---------- */
+  eyedropBtn.addEventListener('click', ()=>{
+    if(!state.hasImage) return;
+    state.eyedropActive = true;
+    stage.style.cursor = 'crosshair';
+    eyedropBtn.textContent = '◎ Click anywhere on the image…';
+  });
+
+  stage.addEventListener('click', e=>{
+    if(!state.eyedropActive || !state.hasImage) return;
+    const rect = originalCanvas.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) / rect.width * originalCanvas.width);
+    const y = Math.round((e.clientY - rect.top) / rect.height * originalCanvas.height);
+    if(x<0||y<0||x>=originalCanvas.width||y>=originalCanvas.height) return;
+    const d = oCtx.getImageData(x,y,1,1).data;
+    setBgColor(d[0],d[1],d[2]);
+    state.eyedropActive = false;
+    stage.style.cursor = 'default';
+    eyedropBtn.textContent = '🎯 Pick background colour from image';
+    runProcess(false);
+  });
+
+  /* ---------- controls ---------- */
+  toleranceEl.addEventListener('input', ()=>{
+    state.tolerance = +toleranceEl.value;
+    toleranceVal.textContent = toleranceEl.value;
+    runProcess(false);
+  });
+  featherEl.addEventListener('input', ()=>{
+    state.feather = +featherEl.value;
+    featherVal.textContent = featherEl.value;
+    runProcess(false);
+  });
+  despeckleEl.addEventListener('change', ()=>{
+    state.despeckle = despeckleEl.checked;
+    runProcess(false);
+  });
+
+  compareRange.addEventListener('input', ()=>{
+    const v = compareRange.value;
+    resultCanvas.style.clipPath = `inset(0 0 0 ${v}%)`;
+    compareHandle.style.left = v + '%';
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    workspace.classList.remove('active');
+    fileInput.value = '';
+    window.scrollTo({ top:0, behavior:'smooth' });
+  });
+
+  downloadBtn.addEventListener('click', ()=>{
+    const link = document.createElement('a');
+    link.download = 'cutout.png';
+    link.href = resultCanvas.toDataURL('image/png');
+    link.click();
+  });
+
+  /* ---------- core removal ---------- */
+  let processTimer = null;
+  function runProcess(withScan){
+    if(!state.hasImage) return;
+    clearTimeout(processTimer);
+    if(withScan){
+      scanEl.classList.add('on');
+      scanLabel.classList.add('on');
+      const labels = ['detecting background…','isolating subject…','feathering edges…'];
+      let i=0;
+      scanLabel.textContent = labels[0];
+      const li = setInterval(()=>{ i=(i+1)%labels.length; scanLabel.textContent = labels[i]; }, 260);
+      processTimer = setTimeout(()=>{
+        clearInterval(li);
+        compute();
+        scanEl.classList.remove('on');
+        scanLabel.classList.remove('on');
+        popConfetti();
+      }, 850);
+    } else {
+      processTimer = setTimeout(compute, 60);
+    }
+  }
+
+  function compute(){
+    const w = originalCanvas.width, h = originalCanvas.height;
+    const src = oCtx.getImageData(0,0,w,h);
+    const out = rCtx.createImageData(w,h);
+    const sd = src.data, od = out.data;
+    const { r:br, g:bg, b:bb } = state.bg;
+    const t = state.tolerance * 2.6;
+    const f = Math.max(1, state.feather * 1.5);
+
+    for(let i=0;i<sd.length;i+=4){
+      const r=sd[i], g=sd[i+1], b=sd[i+2];
+      const d = Math.sqrt((r-br)**2 + (g-bg)**2 + (b-bb)**2);
+      let alpha;
+      if(d <= t - f/2) alpha = 0;
+      else if(d >= t + f/2) alpha = 255;
+      else alpha = Math.round(((d - (t - f/2)) / f) * 255);
+      od[i]=r; od[i+1]=g; od[i+2]=b; od[i+3]=alpha;
+    }
+
+    if(state.despeckle){ boxBlurAlpha(od, w, h); }
+
+    rCtx.putImageData(out, 0, 0);
+  }
+
+  function boxBlurAlpha(data, w, h){
+    const src = new Uint8ClampedArray(data.length);
+    for(let i=3;i<data.length;i+=4) src[i] = data[i];
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const idx = (y*w+x)*4+3;
+        let sum=0, n=0;
+        for(let dy=-1;dy<=1;dy++){
+          const ny=y+dy; if(ny<0||ny>=h) continue;
+          for(let dx=-1;dx<=1;dx++){
+            const nx=x+dx; if(nx<0||nx>=w) continue;
+            sum += src[(ny*w+nx)*4+3]; n++;
+          }
+        }
+        data[idx] = Math.round(sum/n);
+      }
+    }
+  }
+
+  function popConfetti(){
+    const rect = stage.getBoundingClientRect();
+    for(let i=0;i<10;i++){
+      const sq = document.createElement('div');
+      sq.className = 'confetti-sq';
+      sq.style.left = (40 + Math.random()*(rect.width-80)) + 'px';
+      sq.style.top = (rect.height*0.5 + (Math.random()*40-20)) + 'px';
+      sq.style.animationDelay = (Math.random()*0.15) + 's';
+      sq.style.background = i % 2 ? 'var(--key)' : 'var(--ink)';
+      stage.appendChild(sq);
+      setTimeout(()=> sq.remove(), 800);
+    }
+  }
+
+})();
+</script>
+</body>
+</html>
